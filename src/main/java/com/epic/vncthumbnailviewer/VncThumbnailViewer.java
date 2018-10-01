@@ -57,6 +57,8 @@ public class VncThumbnailViewer extends Frame
                 us = value;
             if (param.equalsIgnoreCase("encpassword"))
                 pw = AddHostDialog.readEncPassword(value);
+            if (param.equalsIgnoreCase("file"))
+                t.viewersList.loadHosts(value, pw);
 
             if (i + 2 >= argv.length || argv[i + 2].equalsIgnoreCase("host"))
                 //if this is the last parameter, or if the next parameter is a next host...
