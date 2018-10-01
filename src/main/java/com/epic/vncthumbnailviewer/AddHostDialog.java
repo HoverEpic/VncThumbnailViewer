@@ -74,7 +74,7 @@ class AddHostDialog extends Dialog implements ActionListener, ItemListener {
 
         setFont(new Font("Helvetica", Font.PLAIN, 14));
 
-        hostField = new TextField("127.0.0.1", 10);
+        hostField = new TextField("", 10);
         portField = new TextField("5900", 10);
         usernameField = new TextField("", 10);
         usernameField.enable(false); // not needed by default
