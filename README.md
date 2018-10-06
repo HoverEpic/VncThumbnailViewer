@@ -14,4 +14,7 @@ From czechtech code, https://code.google.com/archive/p/vncthumbnailviewer/
  - ```mvn package```
 
 ## Plans :
+ - Connect by MAC address
  - Reconnect timeout option
+ - wake on lan
+ - Refresh UI
