@@ -30,7 +30,7 @@ import java.net.*;//TEMP
 // This also contains the ability to load/save it's list of VncViewers to/from
 //    an external xml file.
 //
-class VncViewersList extends Vector {
+public class VncViewersList extends Vector {
 
     //
     // Constructor.
@@ -97,6 +97,9 @@ class VncViewersList extends Vector {
 
                     if (e.getFullName().equalsIgnoreCase("Connection")) {
                         boolean success = parseConnection(e, encrypted, encPassword);
+                    } else if (e.getFullName().equalsIgnoreCase("Global")) {
+                        String port = e.getAttribute("Port", null);
+                        String password = e.getAttribute("Password", null);
                     } else
                         System.out.println("Load: Ignoring " + e.getFullName());
                 }
@@ -113,6 +116,7 @@ class VncViewersList extends Vector {
 
     private boolean parseConnection(IXMLElement e, boolean isEncrypted, String encPass) {
         String host = e.getAttribute("Host", null);
+        String name = e.getAttribute("Name", host);
         String prt = e.getAttribute("Port", null);
 
         boolean success = true;
@@ -177,12 +181,10 @@ class VncViewersList extends Vector {
             }
 
             // Launch the Viewer:
-            System.out.println("LOAD Host: " + host + " Port: " + port + " SecType: " + secType);
+            System.out.println("LOAD " + name + " Host: " + host + " Port: " + port + " SecType: " + secType);
             if (success)
-                if (getViewer(host, port) == null) {
-                    VncViewer v = launchViewer(host, port, password, username, userdomain);
-                    //v.setCompName(compname);
-                    //v.setComment(comment);
+                if (getViewer(name) == null) {
+                    VncViewer v = launchViewer(name, host, port, password, username, userdomain);
                 } // else - the host is already open
         }
 
@@ -208,13 +210,11 @@ class VncViewersList extends Vector {
         ListIterator l = listIterator();
         while (l.hasNext()) {
             VncViewer v = (VncViewer) l.next();
+            String name = v.name;
             String host = v.host;
             String port = Integer.toString(v.port);
             String password = v.passwordParam;
             String username = v.usernameParam;
-            //String userdomain = 
-            //String compname =
-            //String comment =
             String sectype = "1";
             if (password != null && password.length() != 0) {
                 sectype = "2";
@@ -233,6 +233,7 @@ class VncViewersList extends Vector {
 
             IXMLElement c = manifest.createElement("Connection");
             manifest.addChild(c);
+            c.setAttribute("Name", name);
             c.setAttribute("Host", host);
             c.setAttribute("Port", port);
             c.setAttribute("SecType", sectype);
@@ -257,15 +258,15 @@ class VncViewersList extends Vector {
 
     }
 
-    public VncViewer launchViewer(String host, int port, String password, String user, String userdomain) {
-        VncViewer v = launchViewer(tnViewer, host, port, password, user, userdomain);
+    public VncViewer launchViewer(String name, String host, int port, String password, String user, String userdomain) {
+        VncViewer v = launchViewer(name, tnViewer, host, port, password, user, userdomain);
         add(v);
         tnViewer.addViewer(v);
 
         return v;
     }
 
-    public static VncViewer launchViewer(VncThumbnailViewer tnviewer, String host, int port, String password, String user, String userdomain) {
+    public static VncViewer launchViewer(String name, VncThumbnailViewer tnviewer, String host, int port, String password, String user, String userdomain) {
         String args[] = new String[4];
         args[0] = "host";
         args[1] = host;
@@ -302,6 +303,7 @@ class VncViewersList extends Vector {
         // launch a new viewer
         System.out.println("Launch Host: " + host + ":" + port);
         VncViewer v = new VncViewer();
+        v.name = name;
         v.mainArgs = args;
         v.inAnApplet = false;
         v.inSeparateFrame = false;
@@ -314,6 +316,21 @@ class VncViewersList extends Vector {
         v.options.scalingFactor = 10;
         v.addContainerListener(tnviewer);
         v.start();
+
+        return v;
+    }
+
+    public VncViewer getViewer(String name) {
+        VncViewer v = null;
+
+        ListIterator l = listIterator();
+        while (l.hasNext()) {
+            v = (VncViewer) l.next();
+            if (v == null)
+                continue;
+            if (v.name == name)
+                break;
+        }
 
         return v;
     }
