@@ -23,3 +23,20 @@ gsettings set org.gnome.Vino icon-visibility never
 
 # disable protocol encryption
 gsettings set org.gnome.Vino require-encryption false
+
+# copy daemon
+sudo sh -c 'cp target/VncThumbnailViewer-1.0-jar-with-dependencies.jar /bin'
+
+sudo sh -c 'cat > /etc/init/vncdaemon.conf <<EOF
+
+#
+# This task is run on startup to start the VncThumbnailViewer daemon
+
+description     "set system hostname"
+
+start on startup
+
+task
+exec java -jar /bin/VncThumbnailViewer-1.0-jar-with-dependencies.jar daemon true
+
+EOF'

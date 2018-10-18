@@ -5,6 +5,7 @@ From czechtech code, https://code.google.com/archive/p/vncthumbnailviewer/
 ## Features :
  - connects to multiple vnc server and mosaïc display
  - save and load a preconfigured host list
+ - auto connect to servers on lan if daemon runing on vnc server
 
 ## User case (why I'm working on this) :
 Someone asked me to setup a kindergarten classroom network, with a teacher desktop and 10 laptops for childrens.
@@ -19,8 +20,6 @@ Laptops will be vino enabled (with setup_client.sh script).
 ## Build :
  - ```mvn package```
 
-## Plans :
- - Connect by MAC address
- - Reconnect timeout option
- - wake on lan
- - Refresh UI
+## Run : 
+### Visuailzer : 
+```java -jar ```

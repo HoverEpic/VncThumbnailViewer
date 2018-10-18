@@ -25,6 +25,7 @@ package com.epic.vncthumbnailviewer;
 // VncThumbnailViewer.java - a unique VNC viewer.  This class creates an empty frame
 // into which multiple vncviewers can be added.
 //
+import com.epic.vncthumbnailviewer.discovery.DiscoveryThread;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
@@ -33,12 +34,14 @@ public class VncThumbnailViewer extends Frame
         implements WindowListener, ComponentListener, ContainerListener, MouseListener, ActionListener {
 
     public static void main(String argv[]) {
-        VncThumbnailViewer t = new VncThumbnailViewer();
 
-        String h = new String("");
-        String pw = new String("");
-        String us = new String("");
+        String h = "";
+        String pw = "";
+        String us = "";
         int p = 0;
+        String file = null;
+        boolean daemon = false;
+        boolean discovery = false;
 
         for (int i = 0; i < argv.length; i += 2) {
             if (argv.length < (i + 2)) {
@@ -58,26 +61,47 @@ public class VncThumbnailViewer extends Frame
             if (param.equalsIgnoreCase("encpassword"))
                 pw = AddHostDialog.readEncPassword(value);
             if (param.equalsIgnoreCase("file"))
-                t.viewersList.loadHosts(value, pw);
+                file = value;
+            if (param.equalsIgnoreCase("daemon"))
+                daemon = Boolean.valueOf(value);
+            if (param.equalsIgnoreCase("discovery"))
+                discovery = Boolean.valueOf(value);
 
-            if (i + 2 >= argv.length || argv[i + 2].equalsIgnoreCase("host"))
-                //if this is the last parameter, or if the next parameter is a next host...
-                if (h != "" && p != 0) {
-                    System.out.println("Command-line: host " + h + " port " + p);
-                    t.launchViewer(h, p, pw, us);
-                    h = "";
-                    p = 0;
-                    pw = "";
-                    us = "";
-                } else
-                    System.out.println("ERROR: No port specified for last host (" + h + ")");
+//            if (i + 2 >= argv.length || argv[i + 2].equalsIgnoreCase("host"))
+//                //if this is the last parameter, or if the next parameter is a next host...
+//                if (h != "" && p != 0) {
+//                    System.out.println("Command-line: host " + h + " port " + p);
+//                    t.launchViewer(h, p, pw, us);
+//                    h = "";
+//                    p = 0;
+//                    pw = "";
+//                    us = "";
+//                } else
+//                    System.out.println("ERROR: No port specified for last host (" + h + ")");
         }
 
+        if (daemon) {
+            new VncViewerDaemon();
+            System.out.println("VncViewerDaemon started !");
+            return;
+        }
+        VncThumbnailViewer t = new VncThumbnailViewer();
+
+        if (file != null)
+            t.viewersList.loadHosts(file, pw);
+
+        if (discovery)
+            if (p != 0 && pw != null) {
+                t.discoveryThread = new DiscoveryThread(t, p, pw);
+                t.discoveryThread.start();
+            } else
+                System.out.println("ERROR: discovery needs a defined port and password");
     }
 
     final static float VERSION = 1.4f;
 
-    VncViewersList viewersList;
+    DiscoveryThread discoveryThread;
+    public VncViewersList viewersList;
     AddHostDialog hostDialog;
     MenuItem newhostMenuItem, loadhostsMenuItem, savehostsMenuItem, exitMenuItem;
     Frame soloViewer;
@@ -101,6 +125,7 @@ public class VncThumbnailViewer extends Frame
         setMenuBar(new MenuBar());
         getMenuBar().add(createFileMenu());
         setVisible(true);
+        setState(Frame.ICONIFIED);
 
         soloViewer = new Frame();
         soloViewer.setSize(GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds().getSize());
@@ -109,21 +134,25 @@ public class VncThumbnailViewer extends Frame
         soloViewer.validate();
     }
 
-    public void launchViewer(String host, int port, String password, String user) {
-        launchViewer(host, port, password, user, "");
+    public void launchViewer(String name, String host, int port, String password, String user) {
+        launchViewer(name, host, port, password, user, "");
     }
 
-    public void launchViewer(String host, int port, String password, String user, String userdomain) {
-        VncViewer v = viewersList.launchViewer(host, port, password, user, userdomain);
-        //addViewer(v); called by viewersList.launchViewer
+    public void launchViewer(String host, int port, String password, String user) {
+        launchViewer(host, host, port, password, user, "");
+    }
+
+    public void launchViewer(String name, String host, int port, String password, String user, String userdomain) {
+        //check for duplicated session
+        if (viewersList.getViewer(name) == null)
+            viewersList.launchViewer(name, host, port, password, user, userdomain);
     }
 
     void addViewer(VncViewer v) {
-        int r = (int) Math.sqrt(viewersList.size() - 1) + 1;//int r = (int)Math.sqrt(this.getComponentCount() - 1) + 1;
+        int r = (int) Math.sqrt(viewersList.size() - 1) + 1;
         if (r != thumbnailRowCount) {
             thumbnailRowCount = r;
             ((GridLayout) this.getLayout()).setRows(thumbnailRowCount);
-//      ((GridLayout)this.getLayout()).setColumns(thumbnailRowCount);
             resizeThumbnails();
         }
         add(v);
@@ -132,14 +161,14 @@ public class VncThumbnailViewer extends Frame
 
     void removeViewer(VncViewer v) {
         viewersList.remove(v);
+        discoveryThread.clients.remove(v.name);
         remove(v);
         validate();
 
-        int r = (int) Math.sqrt(viewersList.size() - 1) + 1;//int r = (int)Math.sqrt(this.getComponentCount() - 1) + 1;
+        int r = (int) Math.sqrt(viewersList.size() - 1) + 1;
         if (r != thumbnailRowCount) {
             thumbnailRowCount = r;
             ((GridLayout) this.getLayout()).setRows(thumbnailRowCount);
-//      ((GridLayout)this.getLayout()).setColumns(thumbnailRowCount);
             resizeThumbnails();
         }
     }
@@ -211,9 +240,7 @@ public class VncThumbnailViewer extends Frame
                     if (v.vc != null) // if the connection has been established
                         updateCanvasScaling(v, widthPerThumbnail, heightPerThumbnail);
             }
-
         }
-
     }
 
     private void loadsaveHosts(int mode) {
@@ -233,17 +260,17 @@ public class VncThumbnailViewer extends Frame
                     viewersList.saveToEncryptedFile(dir + file, pd.getPassword());
                 else
                     viewersList.saveToFile(dir + file);
+            } else if (VncViewersList.isHostsFileEncrypted(dir + file)) {
+                HostsFilePasswordDialog pd = new HostsFilePasswordDialog(this, false);
+                viewersList.loadHosts(dir + file, pd.getPassword());
             } else
-                if (VncViewersList.isHostsFileEncrypted(dir + file)) {
-                    HostsFilePasswordDialog pd = new HostsFilePasswordDialog(this, false);
-                    viewersList.loadHosts(dir + file, pd.getPassword());
-                } else
-                    viewersList.loadHosts(dir + file, "");
+                viewersList.loadHosts(dir + file, "");
         }
     }
 
     private void quit() {
         // Called by either File->Exit or Closing of the main window
+        discoveryThread.interrupt();
         System.out.println("Closing window");
         ListIterator l = viewersList.listIterator();
         while (l.hasNext())
@@ -291,6 +318,7 @@ public class VncThumbnailViewer extends Frame
     }
 
     // Window Listener Events:
+    @Override
     public void windowClosing(WindowEvent evt) {
         if (soloViewer.isShowing())
             soloHostClose();
@@ -300,25 +328,32 @@ public class VncThumbnailViewer extends Frame
 
     }
 
+    @Override
     public void windowActivated(WindowEvent evt) {
     }
 
+    @Override
     public void windowDeactivated(WindowEvent evt) {
     }
 
+    @Override
     public void windowOpened(WindowEvent evt) {
     }
 
+    @Override
     public void windowClosed(WindowEvent evt) {
     }
 
+    @Override
     public void windowIconified(WindowEvent evt) {
     }
 
+    @Override
     public void windowDeiconified(WindowEvent evt) {
     }
 
     // Component Listener Events:
+    @Override
     public void componentResized(ComponentEvent evt) {
         if (evt.getComponent() == this) {
             if (thumbnailRowCount > 0)
@@ -330,16 +365,20 @@ public class VncThumbnailViewer extends Frame
 
     }
 
+    @Override
     public void componentHidden(ComponentEvent evt) {
     }
 
+    @Override
     public void componentMoved(ComponentEvent evt) {
     }
 
+    @Override
     public void componentShown(ComponentEvent evt) {
     }
 
     // Mouse Listener Events:
+    @Override
     public void mouseClicked(MouseEvent evt) {
         if (evt.getClickCount() == 2) {
             Component c = evt.getComponent();
@@ -349,19 +388,24 @@ public class VncThumbnailViewer extends Frame
 
     }
 
+    @Override
     public void mouseEntered(MouseEvent evt) {
     }
 
+    @Override
     public void mouseExited(MouseEvent evt) {
     }
 
+    @Override
     public void mousePressed(MouseEvent evt) {
     }
 
+    @Override
     public void mouseReleased(MouseEvent evt) {
     }
 
     // Container Listener Events:
+    @Override
     public void componentAdded(ContainerEvent evt) {
         // This detects when a vncviewer adds a vnccanvas to it's container
         if (evt.getChild() instanceof VncCanvas) {
@@ -379,10 +423,12 @@ public class VncThumbnailViewer extends Frame
 
     }
 
+    @Override
     public void componentRemoved(ContainerEvent evt) {
     }
 
     // Action Listener Event:
+    @Override
     public void actionPerformed(ActionEvent evt) {
         if (evt.getSource() instanceof Button && ((Button) evt.getSource()).getLabel() == "Hide desktop") {
             VncViewer v = (VncViewer) ((Component) ((Component) evt.getSource()).getParent()).getParent();
@@ -397,7 +443,5 @@ public class VncThumbnailViewer extends Frame
             loadsaveHosts(FileDialog.LOAD);
         if (evt.getSource() == exitMenuItem)
             quit();
-
     }
-
 }

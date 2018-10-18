@@ -50,6 +50,7 @@ public class VncViewer extends java.applet.Applet
         v.start();
     }
 
+    String name;
     String[] mainArgs;
 
     RfbProto rfb;
@@ -96,6 +97,9 @@ public class VncViewer extends java.applet.Applet
     public void init() {
 
         readParameters();
+
+        if (name == null)
+            name = host;
 
         refApplet = this;
 
@@ -482,10 +486,9 @@ public class VncViewer extends java.applet.Applet
                     return;
                 preferredEncoding = encodingsSaved[0];
             }
-        } else
-            // Auto encoder selection is not enabled.
-            if (autoSelectOnly)
-                return;
+        } else // Auto encoder selection is not enabled.
+        if (autoSelectOnly)
+            return;
 
         int[] encodings = new int[20];
         int nEncodings = 0;
